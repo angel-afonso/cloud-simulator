@@ -26,18 +26,10 @@ export const StatsPanel: React.FC<StatsPanelProps> = ({ metrics, nodes, onToggle
   const MetricPill = ({ label, value, color = "text-white", icon, onClick }: any) => (
     <div 
         onClick={onClick}
-        className={`flex items-center space-x-3 px-4 py-1 border-r border-white/5 last:border-0 ${onClick ? 'cursor-pointer hover:bg-white/5 transition-colors' : ''}`}
+        className={`flex flex-col items-center px-4 transition-all duration-300 ${onClick ? 'cursor-pointer hover:opacity-70' : ''}`}
     >
-        {icon && <div className={`text-slate-400`}>{icon}</div>}
-        <div className="flex flex-col">
-            <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">{label}</span>
-            <span className={`text-sm font-mono font-bold leading-tight ${color}`}>{value}</span>
-        </div>
-        {onClick && (
-            <div className="text-slate-500">
-                <svg className={`w-3 h-3 transition-transform ${isCostOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-            </div>
-        )}
+        <span className="text-[8px] font-bold text-slate-500 uppercase tracking-tighter mb-0.5">{label}</span>
+        <span className={`text-sm font-mono font-black leading-none ${color}`}>{value}</span>
     </div>
   );
 
@@ -92,66 +84,67 @@ export const StatsPanel: React.FC<StatsPanelProps> = ({ metrics, nodes, onToggle
   if (metrics.p95LatencyMs > 1500) latencyColor = 'text-red-500';
 
   return (
-    <div className="flex flex-col items-center space-y-2 w-full max-w-5xl transition-all">
+    <div className="flex flex-col items-center space-y-4 w-full transition-all max-w-[95%]">
         
     {/* Main Bar */}
     <div className={`
-        flex items-center backdrop-blur-xl border rounded-2xl shadow-2xl p-1.5 overflow-hidden w-full justify-between transition-all hover:border-white/20 relative z-20
-        ${metrics.isUnderAttack ? 'bg-slate-900/90 border-white/10' : 'bg-slate-900/70 border-white/10'}
+        flex items-center backdrop-blur-xl border rounded-full shadow-2xl px-2 py-1.5 overflow-hidden transition-all hover:border-white/20 relative z-20
+        ${metrics.isUnderAttack ? 'bg-red-950/40 border-red-500/50 shadow-[0_0_30px_rgba(239,68,68,0.2)]' : 'bg-slate-900/40 border-white/10'}
     `}>
       
       {/* Left: Menu Trigger */}
       <button 
         onClick={onToggleBuildMenu}
         className={`
-            flex items-center space-x-2 px-4 py-2 rounded-xl transition-all border
+            flex items-center space-x-2 px-5 py-2.5 rounded-full transition-all duration-300 group
             ${isBuildMenuOpen 
-                ? 'bg-brand-primary text-white border-brand-primary shadow-glow' 
-                : 'bg-white/5 text-slate-300 border-transparent hover:bg-white/10 hover:text-white'}
+                ? 'bg-brand-primary text-white shadow-[0_0_20px_rgba(99,102,241,0.4)]'
+                : 'bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white'}
         `}
       >
-        <div className="grid grid-cols-2 gap-0.5">
-            <div className={`w-1 h-1 rounded-sm ${isBuildMenuOpen ? 'bg-white' : 'bg-current'}`}></div>
-            <div className={`w-1 h-1 rounded-sm ${isBuildMenuOpen ? 'bg-white' : 'bg-current'}`}></div>
-            <div className={`w-1 h-1 rounded-sm ${isBuildMenuOpen ? 'bg-white' : 'bg-current'}`}></div>
-            <div className={`w-1 h-1 rounded-sm ${isBuildMenuOpen ? 'bg-white' : 'bg-current'}`}></div>
+        <div className="relative w-4 h-4 overflow-hidden">
+            <div className={`absolute inset-0 grid grid-cols-2 gap-0.5 transition-transform duration-300 ${isBuildMenuOpen ? 'rotate-90' : ''}`}>
+                <div className={`w-1.5 h-1.5 rounded-sm ${isBuildMenuOpen ? 'bg-white' : 'bg-brand-primary'}`}></div>
+                <div className={`w-1.5 h-1.5 rounded-sm ${isBuildMenuOpen ? 'bg-white' : 'bg-slate-500'}`}></div>
+                <div className={`w-1.5 h-1.5 rounded-sm ${isBuildMenuOpen ? 'bg-white' : 'bg-slate-500'}`}></div>
+                <div className={`w-1.5 h-1.5 rounded-sm ${isBuildMenuOpen ? 'bg-white' : 'bg-brand-primary'}`}></div>
+            </div>
         </div>
-        <span className="text-xs font-bold tracking-wide">DEPLOY</span>
+        <span className="text-[11px] font-black tracking-[0.2em] uppercase">Architecture</span>
       </button>
 
       {/* Center: Core Metrics */}
-      <div className="flex items-center mx-4">
+      <div className="flex items-center px-6">
             <MetricPill 
-                label="Cash" 
+                label="Balance"
                 value={formatCurrency(metrics.cash)} 
-                color={metrics.cash < 1000 ? "text-brand-danger" : "text-emerald-400"}
-                icon={<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
+                color={metrics.cash < 1000 ? "text-red-400" : "text-emerald-400"}
             />
 
+            <div className="w-px h-8 bg-white/5 mx-2"></div>
+
             <MetricPill 
-                label="Latency (P95)" 
+                label="Avg Latency"
                 value={`${metrics.p95LatencyMs}ms`}
                 color={latencyColor}
-                icon={<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
             />
 
-            <div className="flex items-center px-4 space-x-4">
+            <div className="w-px h-8 bg-white/5 mx-2"></div>
+
+            <div className="flex items-center px-4 space-x-6">
                 {/* Uptime */}
-                <div className="flex flex-col items-end">
-                    <span className="text-[9px] font-bold text-slate-500 uppercase">SLA UPTIME</span>
-                    <span className={`text-sm font-mono font-bold ${metrics.uptime >= 99.9 ? 'text-brand-success' : 'text-brand-warning'}`}>
+                <div className="flex flex-col items-center">
+                    <span className="text-[8px] font-bold text-slate-500 uppercase tracking-tighter">SLA Integrity</span>
+                    <span className={`text-xs font-mono font-bold ${metrics.uptime >= 99.9 ? 'text-emerald-400' : 'text-amber-400'}`}>
                         {metrics.uptime.toFixed(2)}%
                     </span>
                 </div>
 
                 {/* Satisfaction Bar */}
-                <div className="flex flex-col w-24">
-                        <div className="flex justify-between items-center mb-1">
-                            <span className="text-[9px] font-bold text-slate-500 uppercase">User SAT</span>
-                            <span className={`text-[9px] font-bold ${satColor.replace('bg-', 'text-')}`}>{metrics.userSatisfaction.toFixed(0)}%</span>
-                        </div>
-                        <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
-                            <div className={`h-full ${satColor} transition-all duration-300`} style={{ width: `${metrics.userSatisfaction}%` }}></div>
+                <div className="flex flex-col items-center w-24">
+                        <span className="text-[8px] font-bold text-slate-500 uppercase tracking-tighter mb-1">User Satisfaction</span>
+                        <div className="w-full h-1 bg-white/5 rounded-full overflow-hidden">
+                            <div className={`h-full ${satColor} transition-all duration-700 shadow-[0_0_8px_currentColor]`} style={{ width: `${metrics.userSatisfaction}%` }}></div>
                         </div>
                 </div>
             </div>
@@ -160,14 +153,19 @@ export const StatsPanel: React.FC<StatsPanelProps> = ({ metrics, nodes, onToggle
       {/* Right: Net Income / Opex Toggle */}
       <div 
         onClick={() => setIsCostOpen(!isCostOpen)}
-        className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 cursor-pointer transition-colors border border-transparent hover:border-white/5 flex flex-col items-end"
+        className={`
+            px-6 py-2 rounded-full transition-all duration-300 cursor-pointer flex items-center space-x-3
+            ${isCostOpen ? 'bg-white/10 ring-1 ring-white/20' : 'bg-white/5 hover:bg-white/10'}
+        `}
       >
-          <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">NET / SEC</span>
-          <div className="flex items-center space-x-1">
-             <span className={`text-sm font-mono font-bold ${netIncome >= 0 ? "text-brand-success" : "text-brand-danger"}`}>
-                {netIncome >= 0 ? '+' : ''}{formatCurrency(netIncome)}
-             </span>
-             <svg className={`w-3 h-3 text-slate-500 transition-transform ${isCostOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+          <div className="flex flex-col items-end">
+            <span className="text-[8px] font-bold text-slate-500 uppercase tracking-widest">Efficiency</span>
+            <span className={`text-xs font-mono font-bold ${netIncome >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                {netIncome >= 0 ? '+' : ''}{formatCurrency(netIncome)}<span className="text-[9px] opacity-60">/s</span>
+            </span>
+          </div>
+          <div className={`p-1.5 rounded-full transition-transform duration-300 ${isCostOpen ? 'bg-white/10 rotate-180' : 'bg-black/20'}`}>
+             <svg className="w-3 h-3 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 9l-7 7-7-7" /></svg>
           </div>
       </div>
     </div>
@@ -230,84 +228,24 @@ export const StatsPanel: React.FC<StatsPanelProps> = ({ metrics, nodes, onToggle
         </div>
     )}
 
-    {/* New Row: Status Codes & Traffic Analysis */}
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-2 w-full">
-        
-        {/* Response Code Distribution Bar */}
-        <div className="col-span-2 bg-slate-900/50 backdrop-blur-md border border-white/5 rounded-xl p-3 flex flex-col justify-center">
-             <div className="flex justify-between items-end mb-2">
-                 <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Response Status</span>
-                 <div className="flex space-x-3 text-[9px] font-mono">
-                     <span className="text-emerald-400">200 OK</span>
-                     <span className="text-slate-400">403 Blocked</span>
-                     <span className="text-amber-400">429 Limit</span>
-                     <span className="text-red-500">5xx Error</span>
-                 </div>
-             </div>
-             <div className="w-full h-3 bg-slate-800 rounded-full overflow-hidden flex">
-                 {/* 200 */}
-                 <div className="h-full bg-emerald-500 transition-all duration-300" 
-                      style={{ width: `${(metrics.responseCodes[ResponseCode.HTTP_200] / (metrics.totalRequests || 1)) * 100}%` }}></div>
-                 {/* 403 */}
-                 <div className="h-full bg-slate-500 transition-all duration-300" 
-                      style={{ width: `${(metrics.responseCodes[ResponseCode.HTTP_403] / (metrics.totalRequests || 1)) * 100}%` }}></div>
-                 {/* 429 */}
-                 <div className="h-full bg-amber-500 transition-all duration-300" 
-                      style={{ width: `${(metrics.responseCodes[ResponseCode.HTTP_429] / (metrics.totalRequests || 1)) * 100}%` }}></div>
-                 {/* 500 + 503 */}
-                 <div className="h-full bg-red-500 transition-all duration-300" 
-                      style={{ width: `${((metrics.responseCodes[ResponseCode.HTTP_500] + metrics.responseCodes[ResponseCode.HTTP_503]) / (metrics.totalRequests || 1)) * 100}%` }}></div>
-             </div>
+    {/* Minimal Status Bar (Integrated) */}
+    <div className="w-full max-w-2xl px-6">
+        <div className="flex justify-between items-center mb-1 px-2">
+            <span className="text-[7px] font-black text-slate-600 uppercase tracking-[0.4em]">Global Traffic Distribution</span>
+            <div className="flex space-x-4 text-[7px] font-black uppercase tracking-widest">
+                <span className="text-emerald-500/70">Success</span>
+                <span className="text-amber-500/70">Throttled</span>
+                <span className="text-red-500/70">Critical</span>
+            </div>
         </div>
-
-        {/* Detailed Latency Box */}
-        <div className="col-span-1 bg-slate-900/50 backdrop-blur-md border border-white/5 rounded-xl p-3 flex items-center justify-between">
-             <div className="flex flex-col">
-                 <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Avg Latency</span>
-                 <span className="text-sm font-mono font-bold text-white">{metrics.latencyMs}ms</span>
-             </div>
-             <div className="h-8 w-px bg-white/10"></div>
-             <div className="flex flex-col items-end">
-                 <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">P95 Tail</span>
-                 <span className={`text-sm font-mono font-bold ${latencyColor}`}>{metrics.p95LatencyMs}ms</span>
-             </div>
+        <div className="w-full h-0.5 bg-white/5 rounded-full overflow-hidden flex shadow-[0_0_10px_rgba(255,255,255,0.02)]">
+            <div className="h-full bg-emerald-500/40 transition-all duration-1000 ease-out"
+                 style={{ width: `${(metrics.responseCodes[ResponseCode.HTTP_200] / (metrics.totalRequests || 1)) * 100}%` }}></div>
+            <div className="h-full bg-amber-500/40 transition-all duration-1000 ease-out"
+                 style={{ width: `${(metrics.responseCodes[ResponseCode.HTTP_429] / (metrics.totalRequests || 1)) * 100}%` }}></div>
+            <div className="h-full bg-red-500/40 transition-all duration-1000 ease-out"
+                 style={{ width: `${((metrics.responseCodes[ResponseCode.HTTP_500] + metrics.responseCodes[ResponseCode.HTTP_503]) / (metrics.totalRequests || 1)) * 100}%` }}></div>
         </div>
-    </div>
-
-    {/* Traffic Breakdown Bar (Existing) */}
-    <div className="grid grid-cols-6 gap-2 w-full">
-        {[RequestType.WEB, RequestType.DB_READ, RequestType.DB_WRITE, RequestType.DB_SEARCH, RequestType.STATIC, RequestType.ATTACK].map(type => {
-            const stats = metrics.requestsByType[type];
-            if (!stats) return null;
-            if (type === RequestType.ATTACK && stats.successful + stats.failed === 0 && !metrics.isUnderAttack) return null;
-            
-            const total = stats.successful + stats.failed;
-            const successRate = total > 0 ? (stats.successful / total) * 100 : 100;
-            const colorClass = REQUEST_COLORS[type];
-
-            return (
-                <div key={type} className={`
-                    backdrop-blur-md border border-white/5 rounded-xl p-2 flex items-center justify-between
-                    ${type === RequestType.ATTACK ? 'bg-red-950/50 border-red-500/20 col-span-1' : 'bg-slate-900/50'}
-                `}>
-                    <div className="flex flex-col">
-                        <span className={`text-[8px] font-bold uppercase tracking-wider ${colorClass}`}>{type.replace('DB_', '')}</span>
-                        <div className="flex items-baseline space-x-1">
-                             <span className="text-xs font-mono font-bold text-white">{Math.round(stats.successful)}/s</span>
-                             {stats.failed > 0 && (
-                                 <span className="text-[9px] text-red-400 font-mono">-{Math.round(stats.failed)}</span>
-                             )}
-                        </div>
-                    </div>
-                    <div className="h-1.5 w-8 bg-slate-700 rounded-full overflow-hidden">
-                        <div 
-                            className={`h-full ${colorClass.replace('text', 'bg')}`} 
-                            style={{ width: `${successRate}%` }}
-                        ></div>
-                    </div>
-                </div>
-            );
-        })}
     </div>
 
     </div>

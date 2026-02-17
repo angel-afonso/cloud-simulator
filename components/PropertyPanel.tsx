@@ -44,21 +44,21 @@ export const PropertyPanel: React.FC<PropertyPanelProps> = ({
       const colorBase = NODE_COLORS[info.type as NodeType]?.split('-')[1] || 'slate';
       
       return (
-          <div className="flex items-center justify-between p-2 rounded-lg bg-slate-800/40 border border-white/5 text-xs">
-              <div className="flex items-center space-x-2 overflow-hidden">
-                  <div className={`w-1.5 h-1.5 rounded-full bg-${colorBase}-400 shrink-0`}></div>
+          <div className="flex items-center justify-between p-3 rounded-2xl bg-white/5 border border-white/5 transition-all duration-300 hover:bg-white/10 group">
+              <div className="flex items-center space-x-3 overflow-hidden">
+                  <div className={`w-1.5 h-1.5 rounded-full bg-${colorBase}-400 shadow-[0_0_8px_currentColor] shrink-0`}></div>
                   <div className="flex flex-col truncate">
-                      <span className="font-bold text-slate-300">{info.type}</span>
-                      <span className="text-[9px] text-slate-500 truncate">{info.id}</span>
+                      <span className="text-[10px] font-bold text-slate-300">{NODE_LABELS[info.type as NodeType] || info.type}</span>
+                      <span className="text-[8px] text-slate-500 font-mono truncate">{info.id}</span>
                   </div>
               </div>
               {isOutgoing && (
                   <button 
                     onClick={() => onUnlink(selectedNode.id, id)}
-                    className="ml-2 text-slate-500 hover:text-red-400 p-1 rounded hover:bg-white/5 transition-colors"
+                    className="ml-2 text-slate-500 hover:text-red-400 p-1.5 rounded-full hover:bg-red-500/10 transition-all duration-300"
                     title="Unlink"
                   >
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
                   </button>
               )}
           </div>
@@ -90,40 +90,39 @@ export const PropertyPanel: React.FC<PropertyPanelProps> = ({
       else if (latest > 50) strokeColor = "#f59e0b"; // Orange
 
       return (
-          <div className="mt-4 mb-2 p-3 bg-slate-950/50 rounded-xl border border-white/5 relative overflow-hidden">
-              <div className="flex justify-between items-center mb-2">
+          <div className="bg-black/20 p-5 rounded-2xl border border-white/5 relative overflow-hidden group transition-all duration-300 hover:border-white/10">
+              <div className="flex justify-between items-center mb-4">
                    <div className="flex items-center space-x-2">
-                        <div className={`w-1.5 h-1.5 rounded-full`} style={{backgroundColor: strokeColor}}></div>
-                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">CPU Utilization</span>
+                        <div className={`w-1 h-1 rounded-full animate-pulse`} style={{backgroundColor: strokeColor}}></div>
+                        <span className="text-[8px] font-black text-slate-500 uppercase tracking-[0.2em]">Real-time Telemetry</span>
                    </div>
-                   <span className="text-[10px] font-mono text-white">{latest.toFixed(1)}%</span>
+                   <span className="text-[10px] font-mono font-bold text-white opacity-80">{latest.toFixed(1)}%</span>
               </div>
               
               <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} className="overflow-visible">
                   {/* Grid lines */}
-                  <line x1="0" y1={height * 0.25} x2={width} y2={height * 0.25} stroke="#334155" strokeWidth="0.5" strokeDasharray="2 2" opacity="0.3" />
-                  <line x1="0" y1={height * 0.5} x2={width} y2={height * 0.5} stroke="#334155" strokeWidth="0.5" strokeDasharray="2 2" opacity="0.3" />
-                  <line x1="0" y1={height * 0.75} x2={width} y2={height * 0.75} stroke="#334155" strokeWidth="0.5" strokeDasharray="2 2" opacity="0.3" />
+                  <line x1="0" y1={height * 0.5} x2={width} y2={height * 0.5} stroke="white" strokeWidth="0.5" opacity="0.05" />
 
                   {/* Gradient Defs */}
                   <defs>
-                      <linearGradient id="chartGradient" x1="0" x2="0" y1="0" y2="1">
-                          <stop offset="0%" stopColor={strokeColor} stopOpacity="0.2" />
+                      <linearGradient id={`chartGradient-${selectedNode.id}`} x1="0" x2="0" y1="0" y2="1">
+                          <stop offset="0%" stopColor={strokeColor} stopOpacity="0.3" />
                           <stop offset="100%" stopColor={strokeColor} stopOpacity="0" />
                       </linearGradient>
                   </defs>
 
                   {/* Area Fill */}
-                  <polygon points={fillPath} fill="url(#chartGradient)" />
+                  <polygon points={fillPath} fill={`url(#chartGradient-${selectedNode.id})`} />
 
                   {/* Line */}
                   <polyline 
                       points={points} 
                       fill="none" 
                       stroke={strokeColor} 
-                      strokeWidth="1.5" 
+                      strokeWidth="2"
                       strokeLinecap="round" 
                       strokeLinejoin="round" 
+                      className="drop-shadow-[0_0_8px_currentColor]"
                   />
               </svg>
           </div>
@@ -133,73 +132,65 @@ export const PropertyPanel: React.FC<PropertyPanelProps> = ({
   const showMonitoring = isCompute || isDatabase || isCache || isNoSQL;
 
   return (
-    <div className="absolute top-24 right-4 bottom-auto w-80 bg-slate-900/90 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl flex flex-col pointer-events-auto animate-[slideInRight_0.3s_ease-out] z-20 max-h-[80vh]">
+    <div className="w-80 bg-slate-950/40 backdrop-blur-md border border-white/10 rounded-3xl shadow-2xl flex flex-col pointer-events-auto animate-[slideInRight_0.4s_cubic-bezier(0.23,1,0.32,1)] z-20 max-h-[70vh] overflow-hidden scanline relative">
       
       {/* Header */}
-      <div className="p-5 border-b border-white/5 flex justify-between items-start bg-white/5 rounded-t-2xl shrink-0">
-        <div className="flex items-center space-x-3">
-            <div className={`w-2 h-2 rounded-full ${selectedNode.status === 'active' ? 'bg-emerald-500 shadow-[0_0_8px_#10b981]' : 'bg-red-500 shadow-[0_0_8px_#ef4444]'} animate-pulse`}></div>
+      <div className="p-6 border-b border-white/5 flex justify-between items-start bg-white/5 rounded-t-3xl shrink-0 relative z-10">
+        <div className="flex items-center space-x-4">
+            <div className="relative">
+                <div className={`w-2.5 h-2.5 rounded-full ${selectedNode.status === 'active' ? 'bg-emerald-500 shadow-[0_0_12px_#10b981]' : 'bg-red-500 shadow-[0_0_12px_#ef4444]'} animate-pulse`}></div>
+            </div>
             <div>
-                <h2 className="text-base font-bold text-white tracking-tight">{selectedNode.type}</h2>
-                <div className="text-[10px] text-brand-primary font-mono opacity-75 uppercase tracking-wider">{selectedNode.id}</div>
+                <h2 className="text-xs font-black text-white tracking-[0.2em] uppercase">{NODE_LABELS[selectedNode.type]}</h2>
+                <div className="text-[9px] text-slate-500 font-mono uppercase tracking-tighter">{selectedNode.id}</div>
             </div>
         </div>
-        <button onClick={onClose} className="text-slate-500 hover:text-white transition-colors">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+        <button onClick={onClose} className="p-1.5 rounded-full bg-white/5 text-slate-500 hover:text-white hover:bg-white/10 transition-all duration-300">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
         </button>
       </div>
 
-      <div className="p-5 flex-1 overflow-y-auto scrollbar-thin">
+      <div className="p-6 flex-1 overflow-y-auto scrollbar-hide space-y-6 relative z-10">
         
         {/* RESOURCE MONITORING GRAPH */}
         {showMonitoring && selectedNode.loadHistory && renderMonitoringChart(selectedNode.loadHistory)}
 
         {/* Key Metrics */}
-        <div className="grid grid-cols-2 gap-3 mb-6">
-            <div className="bg-slate-800/50 p-3 rounded-xl border border-white/5 relative overflow-hidden group">
-                <div className="absolute inset-0 bg-brand-primary/5 scale-x-0 group-hover:scale-x-100 transition-transform origin-left"></div>
-                <div className="relative z-10">
-                    <div className="text-[9px] text-slate-500 uppercase font-bold tracking-wider">Load</div>
-                    <div className={`text-xl font-mono font-bold mt-1 ${selectedNode.currentLoad > 90 ? 'text-brand-danger' : 'text-white'}`}>
-                        {selectedNode.currentLoad.toFixed(0)}%
-                    </div>
+        <div className="grid grid-cols-2 gap-3">
+            <div className="bg-white/5 p-4 rounded-2xl border border-white/5 transition-all hover:bg-white/10 group">
+                <div className="text-[8px] text-slate-500 uppercase font-black tracking-widest mb-1 group-hover:text-slate-300 transition-colors">Utilization</div>
+                <div className={`text-2xl font-mono font-black ${selectedNode.currentLoad > 90 ? 'text-red-400' : 'text-emerald-400'}`}>
+                    {selectedNode.currentLoad.toFixed(0)}<span className="text-[10px] opacity-50 ml-0.5">%</span>
                 </div>
             </div>
-             <div className="bg-slate-800/50 p-3 rounded-xl border border-white/5 relative overflow-hidden group">
-                <div className="absolute inset-0 bg-brand-primary/5 scale-x-0 group-hover:scale-x-100 transition-transform origin-left"></div>
-                <div className="relative z-10">
-                    <div className="text-[9px] text-slate-500 uppercase font-bold tracking-wider">Opex</div>
-                    <div className="text-xl font-mono font-bold text-white mt-1">
-                        ${selectedNode.tier ? COMPUTE_TIERS[selectedNode.tier].opex : selectedNode.cdnTier ? CDN_TIERS[selectedNode.cdnTier].opex : NODE_OPEX[selectedNode.type]}<span className="text-xs text-slate-500 font-normal">/s</span>
-                    </div>
+             <div className="bg-white/5 p-4 rounded-2xl border border-white/5 transition-all hover:bg-white/10 group">
+                <div className="text-[8px] text-slate-500 uppercase font-black tracking-widest mb-1 group-hover:text-slate-300 transition-colors">OPEX</div>
+                <div className="text-2xl font-mono font-black text-white">
+                    <span className="opacity-40 text-xs">$</span>{selectedNode.tier ? COMPUTE_TIERS[selectedNode.tier].opex : selectedNode.cdnTier ? CDN_TIERS[selectedNode.cdnTier].opex : NODE_OPEX[selectedNode.type]}<span className="text-[9px] opacity-50 ml-0.5">/s</span>
                 </div>
             </div>
         </div>
 
         {/* Database Role Selector */}
         {isDatabase && (
-            <div className="mb-6">
-                <div className="flex items-center justify-between mb-3 px-1">
-                    <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Cluster Role</h3>
+            <div>
+                <div className="flex items-center space-x-2 mb-3">
+                    <h3 className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em]">Cluster Role</h3>
+                    <div className="h-px flex-1 bg-white/5"></div>
                 </div>
-                <div className="flex space-x-2">
+                <div className="flex p-1 bg-black/20 rounded-2xl border border-white/5">
                     <button
                         onClick={() => (window as any).gameScene?.externalSetDbRole(selectedNode.id, DbRole.PRIMARY)}
-                        className={`flex-1 py-2 rounded-lg text-xs font-bold border transition-all ${selectedNode.dbRole === DbRole.PRIMARY ? 'bg-amber-500/20 border-amber-500 text-amber-200 shadow-[0_0_10px_rgba(245,158,11,0.2)]' : 'bg-slate-800/50 border-white/5 text-slate-400 hover:bg-slate-700'}`}
+                        className={`flex-1 py-2.5 rounded-xl text-[10px] font-bold transition-all duration-300 ${selectedNode.dbRole === DbRole.PRIMARY ? 'bg-brand-primary text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
                     >
-                        Primary (RW)
+                        Primary
                     </button>
                     <button
                         onClick={() => (window as any).gameScene?.externalSetDbRole(selectedNode.id, DbRole.REPLICA)}
-                        className={`flex-1 py-2 rounded-lg text-xs font-bold border transition-all ${selectedNode.dbRole === DbRole.REPLICA ? 'bg-blue-500/20 border-blue-500 text-blue-200 shadow-[0_0_10px_rgba(59,130,246,0.2)]' : 'bg-slate-800/50 border-white/5 text-slate-400 hover:bg-slate-700'}`}
+                        className={`flex-1 py-2.5 rounded-xl text-[10px] font-bold transition-all duration-300 ${selectedNode.dbRole === DbRole.REPLICA ? 'bg-brand-primary text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
                     >
-                        Replica (RO)
+                        Replica
                     </button>
-                </div>
-                <div className="mt-2 text-[10px] text-slate-500 px-1">
-                    {selectedNode.dbRole === DbRole.PRIMARY 
-                        ? "Handles Writes and Reads. Vulnerable to write saturation." 
-                        : "Handles Reads only. Relieves pressure from Primary."}
                 </div>
             </div>
         )}
@@ -252,28 +243,29 @@ export const PropertyPanel: React.FC<PropertyPanelProps> = ({
         )}
 
         {/* Connections List */}
-        <div className="mb-6">
-            <div className="flex items-center justify-between mb-3 px-1">
-                <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Connections</h3>
+        <div>
+            <div className="flex items-center space-x-2 mb-3">
+                <h3 className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em]">Network Topology</h3>
+                <div className="h-px flex-1 bg-white/5"></div>
             </div>
             
             {outgoing.length === 0 && incoming.length === 0 && (
-                <div className="text-xs text-slate-600 italic text-center py-2 border border-white/5 rounded-lg border-dashed">No active links</div>
+                <div className="text-[10px] text-slate-600 italic text-center py-4 bg-white/5 rounded-2xl border border-white/5 border-dashed uppercase tracking-widest">Isolated Node</div>
             )}
 
-            <div className="space-y-2">
+            <div className="space-y-4">
                 {/* Outgoing */}
                 {outgoing.length > 0 && (
-                     <div className="space-y-1">
-                         <div className="text-[9px] text-slate-500 font-bold px-1 uppercase">Outgoing (Downstream)</div>
+                     <div className="space-y-2">
+                         <div className="text-[8px] text-slate-600 font-black px-1 uppercase tracking-widest">Downstream</div>
                          {outgoing.map(c => <ConnectionItem key={c.id} id={c.targetId} isOutgoing={true} />)}
                      </div>
                 )}
                 
                 {/* Incoming */}
                 {incoming.length > 0 && (
-                     <div className="space-y-1 mt-2">
-                         <div className="text-[9px] text-slate-500 font-bold px-1 uppercase">Incoming (Upstream)</div>
+                     <div className="space-y-2">
+                         <div className="text-[8px] text-slate-600 font-black px-1 uppercase tracking-widest">Upstream</div>
                          {incoming.map(c => <ConnectionItem key={c.id} id={c.sourceId} isOutgoing={false} />)}
                      </div>
                 )}
@@ -282,37 +274,27 @@ export const PropertyPanel: React.FC<PropertyPanelProps> = ({
 
         {/* Load Balancer Algorithm Settings */}
         {isLoadBalancer && (
-            <div className="mb-6">
-                <div className="flex items-center justify-between mb-3 px-1">
-                    <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Algorithm</h3>
+            <div>
+                <div className="flex items-center space-x-2 mb-3">
+                    <h3 className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em]">Distribution Policy</h3>
+                    <div className="h-px flex-1 bg-white/5"></div>
                 </div>
                 
-                <div className="relative">
+                <div className="relative group">
                     <select
                         value={selectedNode.algorithm || LoadBalancerAlgo.ROUND_ROBIN}
                         onChange={(e) => onAlgorithmChange(selectedNode.id, e.target.value as LoadBalancerAlgo)}
-                        className="w-full bg-slate-800/50 border border-white/10 text-slate-200 text-xs rounded-lg px-3 py-2 outline-none focus:border-brand-primary appearance-none cursor-pointer hover:bg-slate-700/50 transition-colors"
+                        className="w-full bg-white/5 border border-white/10 text-slate-200 text-[11px] rounded-2xl px-4 py-3 outline-none focus:border-brand-primary/50 appearance-none cursor-pointer hover:bg-white/10 transition-all duration-300"
                     >
                         <option value={LoadBalancerAlgo.ROUND_ROBIN}>Round Robin</option>
                         <option value={LoadBalancerAlgo.WEIGHTED_ROUND_ROBIN}>Weighted Round Robin</option>
-                        <option value={LoadBalancerAlgo.RANDOM}>Random</option>
+                        <option value={LoadBalancerAlgo.RANDOM}>Random Selection</option>
                         <option value={LoadBalancerAlgo.LEAST_CONNECTION}>Least Connections</option>
                         <option value={LoadBalancerAlgo.WEIGHTED_LEAST_CONNECTION}>Weighted Least Conn.</option>
                         <option value={LoadBalancerAlgo.LEAST_RESPONSE_TIME}>Least Response Time</option>
                     </select>
-                    <div className="absolute right-3 top-2.5 pointer-events-none text-slate-500">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-                    </div>
-                </div>
-
-                <div className="mt-3 p-3 bg-slate-900/50 rounded-lg border border-white/5">
-                    <div className="text-[10px] text-slate-400">
-                        {selectedNode.algorithm === LoadBalancerAlgo.ROUND_ROBIN && "Distributes traffic sequentially."}
-                        {selectedNode.algorithm === LoadBalancerAlgo.WEIGHTED_ROUND_ROBIN && "Distributes based on node capacity (Tier)."}
-                        {selectedNode.algorithm === LoadBalancerAlgo.RANDOM && "Randomly selects available nodes."}
-                        {selectedNode.algorithm === LoadBalancerAlgo.LEAST_CONNECTION && "Sends traffic to the node with the lowest % Load."}
-                        {selectedNode.algorithm === LoadBalancerAlgo.WEIGHTED_LEAST_CONNECTION && "Optimizes for lowest Load relative to Capacity."}
-                        {selectedNode.algorithm === LoadBalancerAlgo.LEAST_RESPONSE_TIME && "Predicts latency and routes to fastest responder."}
+                    <div className="absolute right-4 top-3.5 pointer-events-none text-slate-500 group-hover:text-white transition-colors">
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 9l-7 7-7-7" /></svg>
                     </div>
                 </div>
             </div>
@@ -320,10 +302,10 @@ export const PropertyPanel: React.FC<PropertyPanelProps> = ({
 
         {/* Compute Upgrades */}
         {isCompute && currentTier && (
-          <div className="mb-6">
-            <div className="flex items-center justify-between mb-3 px-1">
-                <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Scaling</h3>
-                <span className="text-[10px] text-slate-500 bg-slate-800 px-2 py-0.5 rounded">{currentTier.name}</span>
+          <div>
+            <div className="flex items-center space-x-2 mb-3">
+                <h3 className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em]">Vertical Scaling</h3>
+                <div className="h-px flex-1 bg-white/5"></div>
             </div>
             
             <div className="space-y-2">
@@ -342,26 +324,26 @@ export const PropertyPanel: React.FC<PropertyPanelProps> = ({
                     onClick={() => onUpgrade(selectedNode.id, tier)}
                     disabled={isCurrent || selectedNode.isUpgrading || !affordable}
                     className={`
-                      w-full flex items-center justify-between p-3 rounded-xl text-xs border transition-all relative overflow-hidden
+                      w-full flex items-center justify-between p-3.5 rounded-2xl text-[11px] border transition-all duration-300 relative overflow-hidden group
                       ${isCurrent 
-                        ? 'bg-brand-primary/20 border-brand-primary text-white cursor-default' 
+                        ? 'bg-brand-primary/20 border-brand-primary/50 text-white cursor-default'
                         : affordable 
-                          ? 'bg-slate-800/50 border-white/5 hover:bg-slate-700 hover:border-white/20 text-slate-300' 
-                          : 'bg-slate-900/50 border-transparent text-slate-600 cursor-not-allowed grayscale'
+                          ? 'bg-white/5 border-white/5 hover:bg-white/10 hover:border-white/20 text-slate-300'
+                          : 'bg-black/20 border-transparent text-slate-600 cursor-not-allowed grayscale'
                       }
                     `}
                   >
                     <div className="flex flex-col text-left relative z-10">
-                        <span className="font-bold text-sm">{config.name}</span>
-                        <span className="text-[10px] opacity-70 mt-0.5">{config.cpus} CPU • {config.ram} • {config.capacity} req/s</span>
+                        <span className="font-bold">{config.name} Node</span>
+                        <span className="text-[9px] opacity-50 mt-0.5 tracking-tight">{config.cpus} vCPU • {config.ram} • {config.capacity} req/s</span>
                     </div>
                     <div className="text-right relative z-10">
                          {isCurrent ? (
-                             <span className="text-brand-primary font-bold text-[10px] tracking-wider">ACTIVE</span>
+                             <span className="text-brand-primary font-black text-[9px] tracking-widest">ACTIVE</span>
                          ) : (
-                             <>
-                                <div className="font-mono font-bold">${cost}</div>
-                             </>
+                             <div className="font-mono font-bold text-white bg-black/40 px-2 py-1 rounded-lg border border-white/5">
+                                ${cost}
+                             </div>
                          )}
                     </div>
                   </button>
@@ -373,10 +355,10 @@ export const PropertyPanel: React.FC<PropertyPanelProps> = ({
 
         {/* CDN Upgrades */}
         {isCDN && currentCdnTier && (
-          <div className="mb-6">
-            <div className="flex items-center justify-between mb-3 px-1">
-                <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Edge Configuration</h3>
-                <span className="text-[10px] text-slate-500 bg-slate-800 px-2 py-0.5 rounded">{currentCdnTier.name}</span>
+          <div>
+            <div className="flex items-center space-x-2 mb-3">
+                <h3 className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em]">Edge Performance</h3>
+                <div className="h-px flex-1 bg-white/5"></div>
             </div>
             
             <div className="space-y-2">
@@ -395,26 +377,26 @@ export const PropertyPanel: React.FC<PropertyPanelProps> = ({
                     onClick={() => onUpgrade(selectedNode.id, tier)}
                     disabled={isCurrent || selectedNode.isUpgrading || !affordable}
                     className={`
-                      w-full flex items-center justify-between p-3 rounded-xl text-xs border transition-all relative overflow-hidden
+                      w-full flex items-center justify-between p-3.5 rounded-2xl text-[11px] border transition-all duration-300 relative overflow-hidden group
                       ${isCurrent 
-                        ? 'bg-teal-500/20 border-teal-500 text-white cursor-default' 
+                        ? 'bg-emerald-500/20 border-emerald-500/50 text-white cursor-default'
                         : affordable 
-                          ? 'bg-slate-800/50 border-white/5 hover:bg-slate-700 hover:border-white/20 text-slate-300' 
-                          : 'bg-slate-900/50 border-transparent text-slate-600 cursor-not-allowed grayscale'
+                          ? 'bg-white/5 border-white/5 hover:bg-white/10 hover:border-white/20 text-slate-300'
+                          : 'bg-black/20 border-transparent text-slate-600 cursor-not-allowed grayscale'
                       }
                     `}
                   >
                     <div className="flex flex-col text-left relative z-10">
-                        <span className="font-bold text-sm">{config.name}</span>
-                        <span className="text-[10px] opacity-70 mt-0.5">{(config.maxHitRate * 100).toFixed(0)}% MAX HIT RATIO • {config.capacity} req/s</span>
+                        <span className="font-bold">{config.name}</span>
+                        <span className="text-[9px] opacity-50 mt-0.5 tracking-tight">{(config.maxHitRate * 100).toFixed(0)}% Efficiency • {config.capacity} req/s</span>
                     </div>
                     <div className="text-right relative z-10">
                          {isCurrent ? (
-                             <span className="text-teal-400 font-bold text-[10px] tracking-wider">ACTIVE</span>
+                             <span className="text-emerald-400 font-black text-[9px] tracking-widest">ACTIVE</span>
                          ) : (
-                             <>
-                                <div className="font-mono font-bold">${cost}</div>
-                             </>
+                             <div className="font-mono font-bold text-white bg-black/40 px-2 py-1 rounded-lg border border-white/5">
+                                ${cost}
+                             </div>
                          )}
                     </div>
                   </button>
@@ -424,13 +406,13 @@ export const PropertyPanel: React.FC<PropertyPanelProps> = ({
           </div>
         )}
 
-        <div className="mt-8 pt-6 border-t border-white/10">
+        <div className="pt-4">
            <button 
              onClick={() => onDelete(selectedNode.id)}
-             className="w-full py-3 bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20 hover:border-red-500/50 rounded-xl font-bold text-xs tracking-wider transition-all flex items-center justify-center space-x-2"
+             className="w-full py-4 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white rounded-2xl font-black text-[10px] tracking-[0.2em] transition-all duration-300 flex items-center justify-center space-x-3 group uppercase"
            >
-             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-             <span>DECOMMISSION</span>
+             <svg className="w-4 h-4 transition-transform group-hover:scale-125" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+             <span>Terminate Instance</span>
            </button>
         </div>
       </div>

@@ -55,6 +55,7 @@ interface NodeVisuals {
     subLabel: Phaser.GameObjects.Text;
     warnIcon?: Phaser.GameObjects.Text; 
     repairIcon?: Phaser.GameObjects.Text;
+    connPort: Phaser.GameObjects.Arc;
 }
 
 interface FlowParticle {
@@ -125,6 +126,7 @@ export class MainScene extends Phaser.Scene {
   onNodeSelect!: (nodeId: string | null) => void;
   onGraphUpdate!: (nodes: NodeData[], connections: Connection[]) => void;
   onInsufficientFunds!: () => void;
+  onEvent!: (message: string, type: 'info' | 'warn' | 'error' | 'success') => void;
 
   simBufferCurrent: Map<string, TrafficMix> = new Map();
   simBufferNext: Map<string, TrafficMix> = new Map();
@@ -251,17 +253,28 @@ export class MainScene extends Phaser.Scene {
     this.input.setDefaultCursor(active ? 'crosshair' : 'default');
   }
 
+  public logEvent(message: string, type: 'info' | 'warn' | 'error' | 'success' = 'info') {
+      if (this.onEvent) {
+          this.onEvent(message, type);
+      }
+  }
+
   public externalAddNode(type: NodeType, x: number, y: number, initialTier?: ComputeTier) {
     let cost = NODE_COSTS[type];
+    let typeName = NODE_LABELS[type];
+
     if (type === NodeType.COMPUTE && initialTier) {
         cost = COMPUTE_TIERS[initialTier].capex;
+        typeName = `Compute (${COMPUTE_TIERS[initialTier].name})`;
     }
 
     if (this.metrics.cash >= cost) {
       this.metrics.cash -= cost;
       this.addNode(type, x, y, undefined, initialTier);
+      this.logEvent(`Provisioned ${typeName}`, 'success');
       this.updateReactMetrics(true); 
     } else {
+      this.logEvent(`Insufficient funds for ${typeName}`, 'error');
       if (this.onInsufficientFunds) this.onInsufficientFunds();
     }
   }
@@ -269,6 +282,11 @@ export class MainScene extends Phaser.Scene {
   public externalDeleteNode(id: string) {
     if (id.startsWith('internet')) return;
     
+    const node = this.nodeDataMap.get(id);
+    if (node) {
+        this.logEvent(`Decommissioned ${NODE_LABELS[node.type]} (${id})`, 'info');
+    }
+
     this.nodes = this.nodes.filter(n => n.id !== id);
     this.nodeDataMap.delete(id);
     this.simBufferCurrent.delete(id);
@@ -328,8 +346,11 @@ export class MainScene extends Phaser.Scene {
       if (vis) {
         vis.subLabel.setText(name);
       }
+      this.logEvent(`Upgrading ${id} to ${name}`, 'info');
       this.updateReactMetrics(true);
       this.broadcastGraphUpdate();
+    } else {
+        this.logEvent(`Insufficient funds for upgrade`, 'error');
     }
   }
 
@@ -474,7 +495,21 @@ export class MainScene extends Phaser.Scene {
         fontSize: '24px'
     }).setOrigin(0.5).setVisible(false);
 
-    container.add([selectionBorder, bg, accent, label, subLabel, statsText, loadBarBg, loadBarFill, warnIcon, repairIcon]);
+    // Connection Port (Integrated Drag handle)
+    const connPort = this.add.circle(width/2, 0, 6, 0x6366f1, 0.2);
+    connPort.setStrokeStyle(1.5, 0x6366f1, 1);
+    connPort.setInteractive({ useHandCursor: true });
+
+    connPort.on('pointerover', () => {
+        connPort.setFillStyle(0x6366f1, 0.8);
+        connPort.setRadius(8);
+    });
+    connPort.on('pointerout', () => {
+        connPort.setFillStyle(0x6366f1, 0.2);
+        connPort.setRadius(6);
+    });
+
+    container.add([selectionBorder, bg, accent, label, subLabel, statsText, loadBarBg, loadBarFill, warnIcon, repairIcon, connPort]);
     this.nodeGroup.add(container);
 
     this.nodeVisuals.set(id, {
@@ -484,7 +519,8 @@ export class MainScene extends Phaser.Scene {
         selectionBorder,
         subLabel,
         warnIcon,
-        repairIcon
+        repairIcon,
+        connPort
     });
 
     let isDragging = false;
@@ -518,6 +554,10 @@ export class MainScene extends Phaser.Scene {
     container.on('drag', (pointer: Phaser.Input.Pointer, dragX: number, dragY: number) => {
       const nativeEvent = pointer.event as MouseEvent;
       if (this.isConnectionMode || nativeEvent.shiftKey) return;
+
+      // Don't move if we are dragging from the port
+      if (this.connectingNodeId === id) return;
+
       container.x = dragX;
       container.y = dragY;
       
@@ -525,6 +565,12 @@ export class MainScene extends Phaser.Scene {
       if (n) { n.x = dragX; n.y = dragY; }
       
       this.visualsDirty = true;
+    });
+
+    // Connection Port Dragging
+    connPort.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+        this.connectingNodeId = id;
+        pointer.event.stopPropagation();
     });
     
     this.visualsDirty = true;
@@ -569,8 +615,10 @@ export class MainScene extends Phaser.Scene {
     const exists = this.connections.find(c => c.sourceId === sourceId && c.targetId === targetId);
     if (exists) {
       this.connections = this.connections.filter(c => c !== exists);
+      this.logEvent(`Link removed: ${sourceId} ⇥ ${targetId}`, 'warn');
     } else {
       this.connections.push({ id: uuidv4(), sourceId, targetId });
+      this.logEvent(`Link established: ${sourceId} ↦ ${targetId}`, 'success');
     }
     this.rebuildAdjacency();
     this.visualsDirty = true;
@@ -601,7 +649,9 @@ export class MainScene extends Phaser.Scene {
   handlePointerMove(pointer: Phaser.Input.Pointer) {
     if (this.connectingNodeId) {
       const sourceNode = this.nodeDataMap.get(this.connectingNodeId);
-      if (sourceNode) {
+      const sourceVis = this.nodeVisuals.get(this.connectingNodeId);
+
+      if (sourceNode && sourceVis) {
         this.dragLine.clear();
         
         let lineColor = PALETTE.BRAND_WARNING;
@@ -628,16 +678,40 @@ export class MainScene extends Phaser.Scene {
             }
         }
 
-        this.dragLine.lineStyle(2, lineColor, lineAlpha);
+        // Start from the connection port visual position
+        const startX = sourceVis.container.x + sourceVis.connPort.x;
+        const startY = sourceVis.container.y + sourceVis.connPort.y;
+
+        this.dragLine.lineStyle(3, lineColor, lineAlpha);
         this.dragLine.beginPath();
-        this.dragLine.moveTo(sourceNode.x, sourceNode.y);
+        this.dragLine.moveTo(startX, startY);
         this.dragLine.lineTo(targetX, targetY);
         this.dragLine.strokePath();
+
+        // Draw a small circle at the target
+        this.dragLine.fillStyle(lineColor, lineAlpha);
+        this.dragLine.fillCircle(targetX, targetY, 4);
       }
     }
   }
 
-  handlePointerUp() {}
+  handlePointerUp() {
+    if (this.connectingNodeId) {
+      // Check if dropped on a node
+      const pointer = this.input.activePointer;
+      const targets = this.input.hitTestPointer(pointer);
+      const hitContainer = targets.find(t => this.nodeGroup.contains(t)) as Phaser.GameObjects.Container;
+
+      if (hitContainer) {
+          const targetId = hitContainer.getData('id');
+          if (targetId && targetId !== this.connectingNodeId) {
+              this.toggleConnection(this.connectingNodeId, targetId);
+          }
+      }
+      this.connectingNodeId = null;
+      this.dragLine.clear();
+    }
+  }
 
   update(time: number, delta: number) {
     if (!this.isPaused) {
@@ -679,6 +753,7 @@ export class MainScene extends Phaser.Scene {
                this.metrics.isUnderAttack = false;
                this.metrics.attackTimeLeft = 0;
                this.attackCooldownTimer = 45000;
+               this.logEvent(`SECURITY: DDoS Attack mitigated. Resuming normal operations.`, 'success');
            }
        } else {
            if (this.attackCooldownTimer > 0) {
@@ -729,6 +804,7 @@ export class MainScene extends Phaser.Scene {
       this.metrics.isUnderAttack = true;
       this.attackTimer = 15000 + Math.random() * 15000; 
       this.metrics.attackTimeLeft = Math.ceil(this.attackTimer / 1000);
+      this.logEvent(`CRITICAL: DDoS Attack detected! Impacting system stability.`, 'error');
   }
 
   cubicBezier(t: number, p0: number, p1: number, p2: number, p3: number) {
@@ -751,11 +827,22 @@ export class MainScene extends Phaser.Scene {
               const target = this.nodeDataMap.get(p.targetId);
               
               if (source && target) {
-                  const dist = Math.abs(target.x - source.x);
-                  const cpOffset = Math.max(dist * 0.5, 50);
+                  const sourceVis = this.nodeVisuals.get(p.sourceId);
+                  const targetVis = this.nodeVisuals.get(p.targetId);
                   
-                  const x = this.cubicBezier(p.t, source.x, source.x + cpOffset, target.x - cpOffset, target.x);
-                  const y = this.cubicBezier(p.t, source.y, source.y, target.y, target.y);
+                  let sX = source.x, sY = source.y, tX = target.x, tY = target.y;
+                  if (sourceVis && targetVis) {
+                      sX = sourceVis.container.x + sourceVis.connPort.x;
+                      sY = sourceVis.container.y + sourceVis.connPort.y;
+                      tX = targetVis.container.x - targetVis.container.width/2;
+                      tY = targetVis.container.y;
+                  }
+
+                  const xDiff = Math.abs(tX - sX);
+                  const cpOffset = Math.max(xDiff * 0.5, 50);
+
+                  const x = this.cubicBezier(p.t, sX, sX + cpOffset, tX - cpOffset, tX);
+                  const y = this.cubicBezier(p.t, sY, sY, tY, tY);
                   
                   this.particleGraphics.fillStyle(p.color, 1);
                   this.particleGraphics.fillCircle(x, y, 2.5);
@@ -790,16 +877,24 @@ export class MainScene extends Phaser.Scene {
       const conn = this.connections[i];
       const source = this.nodeDataMap.get(conn.sourceId);
       const target = this.nodeDataMap.get(conn.targetId);
+      const sourceVis = this.nodeVisuals.get(conn.sourceId);
+      const targetVis = this.nodeVisuals.get(conn.targetId);
       
-      if (source && target) {
-        const dist = Phaser.Math.Distance.Between(source.x, source.y, target.x, target.y);
-        const xDiff = Math.abs(target.x - source.x);
+      if (source && target && sourceVis && targetVis) {
+        const startX = sourceVis.container.x + sourceVis.connPort.x;
+        const startY = sourceVis.container.y + sourceVis.connPort.y;
+
+        // Target anchor: middle left
+        const targetX = targetVis.container.x - targetVis.container.width/2;
+        const targetY = targetVis.container.y;
+
+        const xDiff = Math.abs(targetX - startX);
         const cpOffset = Math.max(xDiff * 0.5, 50);
 
-        this.tempBezier.p0.set(source.x, source.y);
-        this.tempBezier.p1.set(source.x + cpOffset, source.y);
-        this.tempBezier.p2.set(target.x - cpOffset, target.y);
-        this.tempBezier.p3.set(target.x, target.y);
+        this.tempBezier.p0.set(startX, startY);
+        this.tempBezier.p1.set(startX + cpOffset, startY);
+        this.tempBezier.p2.set(targetX - cpOffset, targetY);
+        this.tempBezier.p3.set(targetX, targetY);
         
         this.connectionGraphics.lineStyle(4, PALETTE.SLATE_700, 0.2);
         this.tempBezier.draw(this.connectionGraphics);
