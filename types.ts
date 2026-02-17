@@ -10,7 +10,8 @@ export enum NodeType {
   DATABASE = 'DATABASE', // SQL (Relational)
   DATABASE_NOSQL = 'DATABASE_NOSQL', // NoSQL (Document/Search)
   STORAGE = 'STORAGE',
-  CACHE = 'CACHE'
+  CACHE = 'CACHE',
+  AUTOSCALING_GROUP = 'AUTOSCALING_GROUP',
 }
 
 export enum RequestType {
@@ -81,10 +82,20 @@ export interface NodeData {
   x: number;
   y: number;
   
+  // Cloud Specific
+  az: 'A' | 'B'; // Availability Zone
+  isManaged?: boolean; // Managed services don't fail as often
+
   // Tiering
   tier?: ComputeTier;
   cdnTier?: CdnTier; // Specific for CDN
   
+  // Auto-scaling
+  currentInstances?: number;
+  minInstances?: number;
+  maxInstances?: number;
+  scalingCooldown?: number;
+
   // Database Specific
   dbRole?: DbRole; // Only for DATABASE (SQL)
   
@@ -121,8 +132,19 @@ export interface TrafficBreakdown {
     failed: number;
 }
 
+export interface TechUpgrade {
+  id: string;
+  name: string;
+  description: string;
+  cost: number;
+  unlocked: boolean;
+  category: 'compute' | 'data' | 'network' | 'security';
+}
+
 export interface GameMetrics {
   cash: number;
+  techPoints: number; // Earned from 200 OKs
+  unlockedTech: string[]; // List of TechUpgrade IDs
   revenuePerSec: number;
   opexPerSec: number;
   uptime: number; // 0-100%
@@ -139,6 +161,11 @@ export interface GameMetrics {
   isUnderAttack: boolean; 
   attackTimeLeft: number; // Seconds remaining for current attack
   
+  // Wave System
+  currentWave: number;
+  waveStatus: 'peace' | 'active';
+  waveCountdown: number;
+
   // Detailed breakdown
   requestsByType: Record<RequestType, TrafficBreakdown>;
   

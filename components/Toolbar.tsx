@@ -7,13 +7,17 @@ interface ToolbarProps {
   onAddNode: (type: NodeType) => void;
   canAfford: (cost: number) => boolean;
   isOpen: boolean;
+  unlockedTech: string[];
 }
 
-export const Toolbar: React.FC<ToolbarProps> = ({ onAddNode, canAfford, isOpen }) => {
+export const Toolbar: React.FC<ToolbarProps> = ({ onAddNode, canAfford, isOpen, unlockedTech }) => {
   const categories = [
     { title: "Security", items: [NodeType.WAF, NodeType.FIREWALL] },
     { title: "Network", items: [NodeType.CDN, NodeType.LOAD_BALANCER, NodeType.API_GATEWAY] },
-    { title: "Compute", items: [NodeType.COMPUTE] },
+    { title: "Compute", items: [
+        NodeType.COMPUTE,
+        ...(unlockedTech.includes('autoscaling') ? [NodeType.AUTOSCALING_GROUP] : [])
+    ] },
     { title: "Data", items: [NodeType.CACHE, NodeType.DATABASE, NodeType.DATABASE_NOSQL, NodeType.STORAGE] },
   ];
 

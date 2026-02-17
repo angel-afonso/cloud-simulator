@@ -19,7 +19,7 @@ export const CDN_TIERS: Record<CdnTier, CdnConfig> = {
 export const NODE_COSTS: Record<NodeType, number> = {
   [NodeType.INTERNET]: 0,
   [NodeType.CDN]: 200, 
-  [NodeType.WAF]: 200,
+  [NodeType.WAF]: 250,
   [NodeType.FIREWALL]: 100,
   [NodeType.LOAD_BALANCER]: 150,
   [NodeType.API_GATEWAY]: 300,
@@ -28,6 +28,7 @@ export const NODE_COSTS: Record<NodeType, number> = {
   [NodeType.DATABASE_NOSQL]: 800, // NoSQL (More expensive RAM)
   [NodeType.STORAGE]: 200,
   [NodeType.CACHE]: 150,
+  [NodeType.AUTOSCALING_GROUP]: 300,
 };
 
 // OPEX per second for infrastructure
@@ -39,10 +40,11 @@ export const NODE_OPEX: Record<NodeType, number> = {
   [NodeType.LOAD_BALANCER]: 3,
   [NodeType.API_GATEWAY]: 8,
   [NodeType.COMPUTE]: 1, 
-  [NodeType.DATABASE]: 10,
-  [NodeType.DATABASE_NOSQL]: 15,
-  [NodeType.STORAGE]: 4,
-  [NodeType.CACHE]: 5,
+  [NodeType.DATABASE]: 12,
+  [NodeType.DATABASE_NOSQL]: 18,
+  [NodeType.STORAGE]: 5,
+  [NodeType.CACHE]: 6,
+  [NodeType.AUTOSCALING_GROUP]: 5,
 };
 
 // New Revenue Model: Transactions (Writes) are gold, Static assets are dust.
@@ -81,21 +83,27 @@ export const NODE_COLORS: Record<NodeType, string> = {
   [NodeType.DATABASE_NOSQL]: 'border-fuchsia-500 text-fuchsia-100',
   [NodeType.STORAGE]: 'border-cyan-500 text-cyan-100',
   [NodeType.CACHE]: 'border-pink-500 text-pink-100',
+  [NodeType.AUTOSCALING_GROUP]: 'border-yellow-500 text-yellow-100',
 };
 
 export const NODE_LABELS: Record<NodeType, string> = {
   [NodeType.INTERNET]: 'Internet',
-  [NodeType.CDN]: 'CDN Edge',
-  [NodeType.WAF]: 'WAF (L7)',
-  [NodeType.FIREWALL]: 'Firewall',
-  [NodeType.LOAD_BALANCER]: 'Load Balancer',
+  [NodeType.CDN]: 'CloudFront',
+  [NodeType.WAF]: 'AWS WAF',
+  [NodeType.FIREWALL]: 'VPC FW',
+  [NodeType.LOAD_BALANCER]: 'ALB/NLB',
   [NodeType.API_GATEWAY]: 'API Gateway',
-  [NodeType.COMPUTE]: 'Compute VM',
-  [NodeType.DATABASE]: 'SQL DB',
-  [NodeType.DATABASE_NOSQL]: 'NoSQL DB',
+  [NodeType.COMPUTE]: 'EC2 Instance',
+  [NodeType.DATABASE]: 'RDS (SQL)',
+  [NodeType.DATABASE_NOSQL]: 'DynamoDB',
   [NodeType.STORAGE]: 'S3 Bucket',
-  [NodeType.CACHE]: 'Redis Cache',
+  [NodeType.CACHE]: 'ElastiCache',
+  [NodeType.AUTOSCALING_GROUP]: 'Auto Scaling',
 };
+
+export const CROSS_AZ_LATENCY = 2; // ms
+export const TECH_POINTS_PER_SUCCESS = 0.001;
+export const SLA_PENALTY_RATE = 100; // Cash deducted per tick if SLA violated
 
 // Request Type Visuals
 export const REQUEST_COLORS: Record<RequestType, string> = {
@@ -125,3 +133,41 @@ export const TRAFFIC_MIX: Record<RequestType, number> = {
     [RequestType.STATIC]: 0.15,  // 15% Static (Reduced)
     [RequestType.ATTACK]: 0.0,   // 0% Normally
 };
+
+export const TECH_TREE = [
+    {
+        id: 'autoscaling',
+        name: 'Auto Scaling Groups',
+        description: 'Dynamically scale EC2 instances based on load.',
+        cost: 10,
+        category: 'compute'
+    },
+    {
+        id: 'managed_db',
+        name: 'RDS Managed Service',
+        description: 'Managed databases with 99.99% availability.',
+        cost: 25,
+        category: 'data'
+    },
+    {
+        id: 'global_accelerator',
+        name: 'Global Accelerator',
+        description: 'Reduced entry latency via AWS global network.',
+        cost: 50,
+        category: 'network'
+    },
+    {
+        id: 'shield_advanced',
+        name: 'AWS Shield Advanced',
+        description: 'Enterprise-grade DDoS protection and automatic mitigation.',
+        cost: 100,
+        category: 'security'
+    },
+    {
+        id: 'serverless_lambda',
+        name: 'Lambda Serverless',
+        description: 'Zero idle cost compute. Pay only for execution.',
+        cost: 150,
+        category: 'compute'
+    }
+];

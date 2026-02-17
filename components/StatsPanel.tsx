@@ -8,9 +8,12 @@ interface StatsPanelProps {
   nodes: NodeData[];
   onToggleBuildMenu: () => void;
   isBuildMenuOpen: boolean;
+  onOpenResearch: () => void;
 }
 
-export const StatsPanel: React.FC<StatsPanelProps> = ({ metrics, nodes, onToggleBuildMenu, isBuildMenuOpen }) => {
+export const StatsPanel: React.FC<StatsPanelProps> = ({
+    metrics, nodes, onToggleBuildMenu, isBuildMenuOpen, onOpenResearch
+}) => {
   const [isCostOpen, setIsCostOpen] = useState(false);
 
   const formatCurrency = (val: number) => {
@@ -115,10 +118,26 @@ export const StatsPanel: React.FC<StatsPanelProps> = ({ metrics, nodes, onToggle
 
       {/* Center: Core Metrics */}
       <div className="flex items-center px-6">
+            <MetricPill
+                label="Wave"
+                value={`${metrics.waveStatus === 'peace' ? 'RESTING' : 'WAVE ' + metrics.currentWave}`}
+                color={metrics.waveStatus === 'peace' ? "text-slate-400" : "text-amber-400"}
+            />
+
+            <div className="w-px h-8 bg-white/5 mx-2"></div>
+
             <MetricPill 
                 label="Balance"
                 value={formatCurrency(metrics.cash)} 
                 color={metrics.cash < 1000 ? "text-red-400" : "text-emerald-400"}
+            />
+
+            <div className="w-px h-8 bg-white/5 mx-2"></div>
+
+            <MetricPill
+                label="Innovation"
+                value={Math.floor(metrics.techPoints)}
+                color="text-brand-primary"
             />
 
             <div className="w-px h-8 bg-white/5 mx-2"></div>
@@ -150,6 +169,15 @@ export const StatsPanel: React.FC<StatsPanelProps> = ({ metrics, nodes, onToggle
             </div>
       </div>
 
+      {/* Research Trigger */}
+      <button
+        onClick={onOpenResearch}
+        className="flex items-center space-x-2 px-5 py-2.5 rounded-full transition-all duration-300 bg-white/5 text-slate-300 hover:bg-brand-primary/20 hover:text-brand-primary border border-transparent hover:border-brand-primary/30 ml-2"
+      >
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.628.288a2 2 0 00-1.145 1.816v1.291A7.001 7.001 0 0016.825 21h.062a7.002 7.002 0 006.884-5.326l-.025-.013zm-13.417.046a2 2 0 011.022-.547l2.387-.477a6 6 0 013.86.517l.628.288a2 2 0 011.145 1.816v1.291A7.001 7.001 0 017.175 21h-.062a7.002 7.002 0 01-6.884-5.326l.025-.013zM12 7a5 5 0 110-10 5 5 0 010 10zm0 2a7 7 0 100-14 7 7 0 000 14z" /></svg>
+        <span className="text-[11px] font-black tracking-[0.2em] uppercase">Research</span>
+      </button>
+
       {/* Right: Net Income / Opex Toggle */}
       <div 
         onClick={() => setIsCostOpen(!isCostOpen)}
@@ -170,7 +198,24 @@ export const StatsPanel: React.FC<StatsPanelProps> = ({ metrics, nodes, onToggle
       </div>
     </div>
 
-    {/* ALERT BANNER - SEPARATED */}
+    {/* WAVE & ALERT BANNER - SEPARATED */}
+    {metrics.waveStatus === 'peace' && metrics.waveCountdown < 10 && (
+        <div className="w-full bg-amber-950/90 border border-amber-500 shadow-lg rounded-xl p-3 flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+                <div className="w-2 h-2 rounded-full bg-amber-500 animate-ping"></div>
+                <div className="flex flex-col">
+                    <span className="text-xs font-bold text-amber-500 tracking-widest uppercase">Traffic Surge Imminent</span>
+                    <span className="text-[10px] text-amber-300">
+                        Prepare your infrastructure for Wave {metrics.currentWave + 1}
+                    </span>
+                </div>
+            </div>
+            <div className="bg-amber-900/50 px-3 py-1 rounded-lg border border-amber-500/30">
+                <span className="text-white font-mono font-bold text-xs">T-Minus: {metrics.waveCountdown}s</span>
+            </div>
+        </div>
+    )}
+
     {metrics.isUnderAttack && (
         <div className="w-full bg-red-950/90 border border-red-500 shadow-lg rounded-xl p-3 flex items-center justify-between animate-pulse">
             <div className="flex items-center space-x-3">
