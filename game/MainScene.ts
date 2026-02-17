@@ -8,7 +8,9 @@ import {
   COMPUTE_TIERS, CDN_TIERS, NODE_COSTS, NODE_OPEX, REVENUE_BY_TYPE, 
   NODE_LABELS, UPGRADE_TIME_MS, REQUEST_HEX_COLORS, TRAFFIC_MIX, 
   CDN_WARMUP_CONSTANT, CACHE_WARMUP_CONSTANT, CACHE_WRITE_PENALTY,
-  SATISFACTION_PENALTY_RATE, SATISFACTION_RECOVERY_RATE
+  SATISFACTION_PENALTY_RATE, SATISFACTION_RECOVERY_RATE,
+  CHAOS_FAILURE_CHANCE_PER_TICK, REPAIR_TIME_MS, CROSS_AZ_LATENCY,
+  SLA_PENALTY_RATE, TECH_POINTS_PER_SUCCESS
 } from '../constants';
 
 const PALETTE = {
@@ -90,7 +92,11 @@ export class MainScene extends Phaser.Scene {
   simulationSpeed: number = 0; 
   isPaused: boolean = true;
   isConnectionMode: boolean = false;
-  currentBaseTraffic: number = 50; 
+  currentBaseTraffic: number = 100;
+
+  // Wave State
+  waveCountdownTimer: number = 30000; // 30s peace time
+  currentWaveVolume: number = 0;
   
   // Attack State
   isUnderAttack: boolean = false;
@@ -102,6 +108,7 @@ export class MainScene extends Phaser.Scene {
   billingAccumulator: number = 0;
   lastReactUpdate: number = 0;
   lastTextUpdate: number = 0; 
+  lastSlaLogTime: number = 0;
   visualsDirty: boolean = true;
   
   // Visual Objects
@@ -138,7 +145,8 @@ export class MainScene extends Phaser.Scene {
 
   createInitialMetrics(): GameMetrics {
       return {
-          cash: 5000,
+          cash: 3000,
+          techPoints: 0,
           revenuePerSec: 0,
           opexPerSec: 0,
           uptime: 100,
@@ -151,6 +159,9 @@ export class MainScene extends Phaser.Scene {
           activeUsers: 50,
           isUnderAttack: false,
           attackTimeLeft: 0,
+          currentWave: 0,
+          waveStatus: 'peace',
+          waveCountdown: 30,
           requestsByType: {
               [RequestType.WEB]: { successful: 0, failed: 0 },
               [RequestType.DB_READ]: { successful: 0, failed: 0 },
@@ -227,7 +238,9 @@ export class MainScene extends Phaser.Scene {
     this.particles = [];
     
     this.metrics = this.createInitialMetrics();
-    this.currentBaseTraffic = 50;
+    this.currentBaseTraffic = 100;
+    this.waveCountdownTimer = 30000;
+    this.currentWaveVolume = 0;
     this.isUnderAttack = false;
     this.attackTimer = 0;
     this.attackCooldownTimer = 0;
@@ -397,21 +410,31 @@ export class MainScene extends Phaser.Scene {
   addNode(type: NodeType, x: number, y: number, specificId?: string, initialTier?: ComputeTier) {
     const id = specificId || `${type.toLowerCase()}-${uuidv4().slice(0, 4)}`;
     
-    const tier = (type === NodeType.COMPUTE) 
+    const tier = (type === NodeType.COMPUTE || type === NodeType.AUTOSCALING_GROUP)
         ? (initialTier || ComputeTier.T1) 
         : undefined;
+
+    const az = x < 400 ? 'A' : 'B';
+    const hasManagedDB = this.metrics.unlockedTech?.includes('managed_db');
+    const isManaged = [NodeType.STORAGE, NodeType.CDN].includes(type) ||
+                      ([NodeType.DATABASE, NodeType.DATABASE_NOSQL, NodeType.CACHE].includes(type) && hasManagedDB);
 
     const nodeData: NodeData = {
       id,
       type,
       x,
       y,
+      az,
+      isManaged,
       currentLoad: 0,
       loadHistory: new Array(30).fill(0),
       processedReqs: 0,
       droppedReqs: 0,
       status: 'active', 
       tier,
+      currentInstances: type === NodeType.AUTOSCALING_GROUP ? 1 : undefined,
+      minInstances: type === NodeType.AUTOSCALING_GROUP ? 1 : undefined,
+      maxInstances: type === NodeType.AUTOSCALING_GROUP ? 5 : undefined,
       cdnTier: type === NodeType.CDN ? CdnTier.EDGE_BASIC : undefined,
       algorithm: type === NodeType.LOAD_BALANCER ? LoadBalancerAlgo.ROUND_ROBIN : undefined,
       dbRole: type === NodeType.DATABASE ? DbRole.PRIMARY : undefined, 
@@ -446,6 +469,10 @@ export class MainScene extends Phaser.Scene {
     const width = 120;
     const height = 70;
     const container = this.add.container(x, y);
+
+    const azText = this.add.text(width/2 - 10, -height/2 + 5, `AZ-${az}`, {
+        fontSize: '8px', fontFamily: 'JetBrains Mono', color: az === 'A' ? '#60a5fa' : '#f87171'
+    }).setOrigin(1, 0);
     container.setSize(width, height);
     container.setData('id', id);
     container.setInteractive({ draggable: true });
@@ -509,7 +536,7 @@ export class MainScene extends Phaser.Scene {
         connPort.setRadius(6);
     });
 
-    container.add([selectionBorder, bg, accent, label, subLabel, statsText, loadBarBg, loadBarFill, warnIcon, repairIcon, connPort]);
+    container.add([selectionBorder, bg, accent, label, subLabel, azText, statsText, loadBarBg, loadBarFill, warnIcon, repairIcon, connPort]);
     this.nodeGroup.add(container);
 
     this.nodeVisuals.set(id, {
@@ -717,6 +744,8 @@ export class MainScene extends Phaser.Scene {
     if (!this.isPaused) {
        const effectiveDelta = delta * this.simulationSpeed;
        
+       this.handleWaveLogic(effectiveDelta);
+
        this.nodes.forEach(node => {
          if (node.isUpgrading && node.status === 'booting') {
             const progressIncrement = (effectiveDelta / UPGRADE_TIME_MS) * 100;
@@ -739,6 +768,10 @@ export class MainScene extends Phaser.Scene {
              } else {
                  node.status = 'down';
              }
+         }
+
+         if (node.scalingCooldown && node.scalingCooldown > 0) {
+             node.scalingCooldown -= effectiveDelta;
          }
        });
 
@@ -795,8 +828,69 @@ export class MainScene extends Phaser.Scene {
     }
   }
 
+  handleWaveLogic(delta: number) {
+      if (this.metrics.waveStatus === 'peace') {
+          this.waveCountdownTimer -= delta;
+          this.metrics.waveCountdown = Math.ceil(this.waveCountdownTimer / 1000);
+
+          if (this.waveCountdownTimer <= 0) {
+              this.startWave();
+          }
+      } else {
+          // Wave is active
+          if (this.currentBaseTraffic < this.currentWaveVolume) {
+              this.currentBaseTraffic += (this.currentWaveVolume / 20) * (delta / 1000);
+          }
+
+          // Wave lasts for a certain amount of processed requests or time
+          // For simplicity, let's say 45 seconds of traffic
+          this.waveCountdownTimer -= delta;
+          this.metrics.waveCountdown = Math.ceil(this.waveCountdownTimer / 1000);
+
+          if (this.waveCountdownTimer <= 0) {
+              this.endWave();
+          }
+      }
+  }
+
+  startWave() {
+      this.metrics.currentWave++;
+      this.metrics.waveStatus = 'active';
+      this.waveCountdownTimer = 45000; // Wave lasts 45s
+
+      const waveNum = this.metrics.currentWave;
+      this.currentWaveVolume = 500 * Math.pow(1.5, waveNum);
+
+      // Randomly decide if this wave has a DDoS component
+      if (waveNum > 2 && Math.random() < 0.4) {
+          this.triggerAttack();
+      }
+
+      this.logEvent(`WAVE ${waveNum} STARTED: Incoming traffic spike!`, 'warn');
+  }
+
+  endWave() {
+      this.metrics.waveStatus = 'peace';
+      this.waveCountdownTimer = 30000; // 30s peace
+      this.currentWaveVolume = 100; // Back to baseline
+      this.isUnderAttack = false;
+      this.metrics.isUnderAttack = false;
+      this.logEvent(`WAVE COMPLETED: System stabilizing.`, 'success');
+  }
+
   runChaosMonkey(effectiveDelta: number) {
-      // Chaos Monkey disabled: Nodes will not randomly fail.
+      if (this.isPaused) return;
+
+      this.nodes.forEach(node => {
+          if (node.status === 'active' && !node.isManaged && !node.id.startsWith('internet')) {
+              // Non-managed nodes (like EC2 instances not in ASG) have a small failure chance
+              if (Math.random() < CHAOS_FAILURE_CHANCE_PER_TICK * this.simulationSpeed) {
+                  node.status = 'down';
+                  node.failureTimeLeft = REPAIR_TIME_MS;
+                  this.logEvent(`INFRA ALERT: ${node.id} suffered a hardware failure!`, 'error');
+              }
+          }
+      });
   }
   
   triggerAttack() {
@@ -965,18 +1059,48 @@ export class MainScene extends Phaser.Scene {
 
   runBilling() {
     let totalOpex = 0;
+    const hasLambda = this.metrics.unlockedTech?.includes('serverless_lambda');
+
     for (let i = 0; i < this.nodes.length; i++) {
         const node = this.nodes[i];
+
+        // Serverless Lambda effect: No idle cost if load is 0
+        if (hasLambda && node.type === NodeType.COMPUTE && node.currentLoad < 1) {
+            continue;
+        }
+
+        let nodeOpex = 0;
         if (node.tier) {
-            totalOpex += COMPUTE_TIERS[node.tier].opex;
+            nodeOpex = COMPUTE_TIERS[node.tier].opex;
         } else if (node.cdnTier) {
-            totalOpex += CDN_TIERS[node.cdnTier].opex;
+            nodeOpex = CDN_TIERS[node.cdnTier].opex;
         } else {
-            totalOpex += NODE_OPEX[node.type];
+            nodeOpex = NODE_OPEX[node.type];
+        }
+
+        // Auto-scaling cost multiplier
+        if (node.type === NodeType.AUTOSCALING_GROUP && node.currentInstances) {
+            nodeOpex *= node.currentInstances;
+        }
+
+        totalOpex += nodeOpex;
+    }
+
+    // SLA Penalty
+    let slaPenalty = 0;
+    const now = Date.now();
+    if (this.metrics.uptime < 99.9 || this.metrics.p95LatencyMs > 1000) {
+        slaPenalty = SLA_PENALTY_RATE;
+        if (this.metrics.uptime < 95) slaPenalty *= 5;
+
+        // Throttle logging to once per 10 seconds
+        if (now > this.lastSlaLogTime + 10000) {
+            this.logEvent(`SLA VIOLATION: Deducting ${slaPenalty} due to poor service level.`, 'error');
+            this.lastSlaLogTime = now;
         }
     }
 
-    this.metrics.cash = this.metrics.cash - totalOpex + this.metrics.revenuePerSec;
+    this.metrics.cash = this.metrics.cash - totalOpex + this.metrics.revenuePerSec - slaPenalty;
     this.metrics.opexPerSec = totalOpex;
     this.updateReactMetrics(true);
   }
@@ -998,10 +1122,10 @@ export class MainScene extends Phaser.Scene {
     this.currentBaseTraffic = Math.max(10, Math.min(1000000, this.currentBaseTraffic));
 
     const time = Date.now() / 1000;
-    const dailyCycle = Math.sin(time * 0.2) * (this.currentBaseTraffic * 0.15); 
+    const dailyCycle = Math.sin(time * 0.2) * (this.currentBaseTraffic * 0.1);
     const noise = (Math.random() - 0.5) * (this.currentBaseTraffic * 0.05); 
     
-    let totalIncoming = Math.floor(Math.max(0, this.currentBaseTraffic + dailyCycle + noise));
+    let totalIncoming = Math.floor(Math.max(10, this.currentBaseTraffic + dailyCycle + noise));
     
     let attackVolume = 0;
     if (this.isUnderAttack) {
@@ -1103,10 +1227,12 @@ export class MainScene extends Phaser.Scene {
 
             // STATUS 403 CHECK: WAF/Firewall filtering
             const initialAttack = inputMix[RequestType.ATTACK];
+            const hasShield = this.metrics.unlockedTech?.includes('shield_advanced');
+
             if (node.type === NodeType.FIREWALL) {
-                inputMix[RequestType.ATTACK] *= 0.2; 
+                inputMix[RequestType.ATTACK] *= hasShield ? 0.05 : 0.2;
             } else if (node.type === NodeType.WAF) {
-                inputMix[RequestType.ATTACK] *= 0.001;
+                inputMix[RequestType.ATTACK] *= hasShield ? 0.0001 : 0.001;
             }
             const blockedAttack = initialAttack - inputMix[RequestType.ATTACK];
             if (blockedAttack > 0) {
@@ -1119,8 +1245,32 @@ export class MainScene extends Phaser.Scene {
             trafficMoved = true;
 
             let capacity = 999999;
-            if (node.type === NodeType.COMPUTE && node.tier) capacity = COMPUTE_TIERS[node.tier].capacity;
-            else if (node.type === NodeType.CDN && node.cdnTier) capacity = CDN_TIERS[node.cdnTier].capacity;
+            if (node.type === NodeType.COMPUTE && node.tier) {
+                capacity = COMPUTE_TIERS[node.tier].capacity;
+            } else if (node.type === NodeType.AUTOSCALING_GROUP && node.tier) {
+                // Scaling Logic
+                const baseCap = COMPUTE_TIERS[node.tier].capacity;
+
+                if (!node.scalingCooldown || node.scalingCooldown <= 0) {
+                    if (node.currentLoad > 85 && node.currentInstances! < node.maxInstances!) {
+                        node.currentInstances!++;
+                        node.scalingCooldown = 15000; // 15s cooldown
+                        this.logEvent(`ASG ${node.id} scaled UP to ${node.currentInstances} instances.`, 'info');
+                    } else if (node.currentLoad < 30 && node.currentInstances! > node.minInstances!) {
+                        node.currentInstances!--;
+                        node.scalingCooldown = 15000; // 15s cooldown
+                        this.logEvent(`ASG ${node.id} scaled DOWN to ${node.currentInstances} instances.`, 'info');
+                    }
+                }
+
+                capacity = baseCap * (node.currentInstances || 1);
+
+                const vis = this.nodeVisuals.get(node.id);
+                if (vis) vis.subLabel.setText(`${node.currentInstances}x ${COMPUTE_TIERS[node.tier].name}`);
+
+            } else if (node.type === NodeType.CDN && node.cdnTier) {
+                capacity = CDN_TIERS[node.cdnTier].capacity;
+            }
             else if (node.type === NodeType.WAF) capacity = 50000;
             else if (node.type === NodeType.FIREWALL) capacity = 200000;
             else if (node.type === NodeType.LOAD_BALANCER) capacity = 100000;
@@ -1152,7 +1302,7 @@ export class MainScene extends Phaser.Scene {
             const loadFactor = Math.min(0.99, node.currentLoad / 100);
             maxNodeLoadFactor = Math.max(maxNodeLoadFactor, loadFactor);
 
-            const nodeLatency = 5 + (20 * loadFactor) + (loadFactor > 0.85 ? Math.pow(loadFactor * 10 - 8.5, 3) * 10 : 0);
+            let nodeLatency = 5 + (20 * loadFactor) + (loadFactor > 0.85 ? Math.pow(loadFactor * 10 - 8.5, 3) * 10 : 0);
             
             if (node.processedReqs > 0) {
                 totalLatencyAccumulator += nodeLatency;
@@ -1218,7 +1368,11 @@ export class MainScene extends Phaser.Scene {
 
                     bStaticSuc += hits;
                     const nextMix = this.simBufferNext.get(connectedStorage);
-                    if (nextMix) nextMix[RequestType.STATIC] += misses;
+                    if (nextMix) {
+                        nextMix[RequestType.STATIC] += misses;
+                        const targetNode = this.nodeDataMap.get(connectedStorage);
+                        if (targetNode && targetNode.az !== node.az) totalLatencyAccumulator += (misses * CROSS_AZ_LATENCY) / (stat || 1);
+                    }
                     if (shouldSpawnParticle) this.spawnParticle(node.id, connectedStorage, RequestType.STATIC);
                  }
 
@@ -1468,6 +1622,12 @@ export class MainScene extends Phaser.Scene {
                                         next[RequestType.DB_WRITE] += dbWrite * ratio;
                                         next[RequestType.DB_SEARCH] += dbSearch * ratio;
                                         next[RequestType.ATTACK] += attack * ratio;
+
+                                        const targetNode = this.nodeDataMap.get(t.id);
+                                        if (targetNode && targetNode.az !== node.az) {
+                                            const crossAzLoad = (web + dbRead + dbWrite + dbSearch + attack) * ratio;
+                                            totalLatencyAccumulator += (crossAzLoad * CROSS_AZ_LATENCY) / (totalDynamic || 1);
+                                        }
                                     }
 
                                     // Visuals: Particles
@@ -1526,6 +1686,9 @@ export class MainScene extends Phaser.Scene {
         (bDbSearchSuc * REVENUE_BY_TYPE[RequestType.DB_SEARCH]) +
         (bStaticSuc * REVENUE_BY_TYPE[RequestType.STATIC]);
 
+    // Innovation Points gain
+    this.metrics.techPoints += successful * TECH_POINTS_PER_SUCCESS;
+
     this.metrics.successfulRequests = successful;
     this.metrics.failedRequests = failed;
     this.metrics.totalRequests = totalIncoming;
@@ -1533,8 +1696,11 @@ export class MainScene extends Phaser.Scene {
     const legitIncoming = totalIncoming - attackVolume;
     this.metrics.uptime = legitIncoming > 0 ? Math.min(100, (successful / legitIncoming) * 100) : 100;
 
+    const hasGlobalAccelerator = this.metrics.unlockedTech?.includes('global_accelerator');
+    const baseLatency = hasGlobalAccelerator ? 10 : 20;
+
     const avgNodeLatency = nodesContributingToLatency > 0 ? totalLatencyAccumulator / nodesContributingToLatency : 0;
-    this.metrics.latencyMs = Math.round(20 + avgNodeLatency);
+    this.metrics.latencyMs = Math.round(baseLatency + avgNodeLatency);
     
     // Heuristic P95: Avg + Penalties for saturated nodes
     // If max load > 90%, P95 skyrockets

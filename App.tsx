@@ -7,6 +7,9 @@ import { Toolbar } from './components/Toolbar';
 import { StatsPanel } from './components/StatsPanel';
 import { PropertyPanel } from './components/PropertyPanel';
 import { Terminal } from './components/Terminal';
+import { ResearchPanel } from './components/ResearchPanel';
+import { GameOverOverlay } from './components/GameOverOverlay';
+import { TECH_TREE } from './constants';
 
 // --- FLOATING CONTROLS COMPONENT ---
 const ControlButton = ({ speed, currentSpeed, label, icon, onClick }: any) => (
@@ -29,7 +32,8 @@ export default function App() {
 
   // Game State - Initialize speed to 0 (Paused)
   const [metrics, setMetrics] = useState<GameMetrics>({
-    cash: 5000,
+    cash: 3000,
+    techPoints: 0,
     revenuePerSec: 0,
     opexPerSec: 0,
     uptime: 100,
@@ -42,6 +46,10 @@ export default function App() {
     activeUsers: 100,
     isUnderAttack: false,
     attackTimeLeft: 0,
+    unlockedTech: [],
+    currentWave: 0,
+    waveStatus: 'peace',
+    waveCountdown: 30,
     requestsByType: {
       [RequestType.WEB]: { successful: 0, failed: 0 },
       [RequestType.DB_READ]: { successful: 0, failed: 0 },
@@ -68,6 +76,8 @@ export default function App() {
   
   // UI State
   const [isBuildMenuOpen, setIsBuildMenuOpen] = useState<boolean>(false);
+  const [isResearchOpen, setIsResearchOpen] = useState<boolean>(false);
+  const [gameOver, setGameOver] = useState<'bankruptcy' | 'satisfaction' | null>(null);
   const [logs, setLogs] = useState<any[]>([]);
 
   useEffect(() => {
@@ -141,16 +151,28 @@ export default function App() {
     };
   }, []);
 
-  // Poll for selected node stats update (to show realtime cache warming)
+  // Poll for selected node stats update and check lose conditions
   useEffect(() => {
     const interval = setInterval(() => {
-        if (sceneRef.current && sceneRef.current.getSelectedNode()) {
+        if (sceneRef.current) {
             const n = sceneRef.current.getSelectedNode();
             if (n) setSelectedNode({...n});
+
+            // Lose condition checks
+            if (gameSpeed > 0) {
+                if (metrics.cash < -500) {
+                    setGameOver('bankruptcy');
+                    handleSpeedChange(0);
+                }
+                if (metrics.userSatisfaction <= 0) {
+                    setGameOver('satisfaction');
+                    handleSpeedChange(0);
+                }
+            }
         }
-    }, 250); // 4 times a second
+    }, 250);
     return () => clearInterval(interval);
-  }, []);
+  }, [metrics.cash, metrics.userSatisfaction, gameSpeed]);
 
   // --- Handlers ---
 
@@ -204,14 +226,38 @@ export default function App() {
     sceneRef.current?.setConnectionMode(newState);
   };
 
-  const handleRestart = () => {
-      if (window.confirm("Are you sure you want to restart? All progress will be lost.")) {
-          sceneRef.current?.reset();
-          setSelectedNode(null);
-          setGameSpeed(0);
-          sceneRef.current?.setSpeed(0);
+  const handleUnlockTech = (techId: string) => {
+    const tech = TECH_TREE.find(t => t.id === techId);
+    if (tech && metrics.techPoints >= tech.cost) {
+      const newUnlocked = [...metrics.unlockedTech, techId];
+      setMetrics(prev => ({
+        ...prev,
+        techPoints: prev.techPoints - tech.cost,
+        unlockedTech: newUnlocked
+      }));
+
+      // Update scene metrics as well if needed
+      if (sceneRef.current) {
+          sceneRef.current.metrics.techPoints -= tech.cost;
+          sceneRef.current.metrics.unlockedTech = newUnlocked;
+          sceneRef.current.logEvent(`RESEARCHED: ${tech.name}`, 'success');
       }
+    }
   };
+
+  const handleRestart = () => {
+      sceneRef.current?.reset();
+      setSelectedNode(null);
+      setGameSpeed(0);
+      sceneRef.current?.setSpeed(0);
+      setGameOver(null);
+  };
+
+  const handleManualRestart = () => {
+    if (window.confirm("Are you sure you want to restart? All progress will be lost.")) {
+        handleRestart();
+    }
+};
 
   return (
     <div className={`relative h-screen w-screen bg-[#020617] font-sans text-slate-200 overflow-hidden selection:bg-brand-primary selection:text-white ${metrics.isUnderAttack ? 'ring-[16px] ring-red-500/10 ring-inset animate-[pulse_2s_infinite]' : ''}`}>
@@ -242,6 +288,7 @@ export default function App() {
                   nodes={nodes}
                   onToggleBuildMenu={() => setIsBuildMenuOpen(!isBuildMenuOpen)}
                   isBuildMenuOpen={isBuildMenuOpen}
+                  onOpenResearch={() => setIsResearchOpen(true)}
               />
           </div>
 
@@ -250,6 +297,7 @@ export default function App() {
               isOpen={isBuildMenuOpen} 
               onAddNode={handleAddNode} 
               canAfford={(c) => metrics.cash >= c} 
+              unlockedTech={metrics.unlockedTech}
           />
 
           {/* Right Floating Panel (Inspector & Terminal) */}
@@ -276,6 +324,23 @@ export default function App() {
             </div>
           </div>
 
+          {/* Research Panel Overlay */}
+          <ResearchPanel
+            isOpen={isResearchOpen}
+            onClose={() => setIsResearchOpen(false)}
+            techPoints={metrics.techPoints}
+            unlockedTech={metrics.unlockedTech}
+            onUnlock={handleUnlockTech}
+          />
+
+          {/* Game Over Overlay */}
+          {gameOver && (
+            <GameOverOverlay
+                reason={gameOver}
+                onRestart={handleRestart}
+            />
+          )}
+
           {/* Bottom Control Island */}
           <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 pointer-events-auto flex flex-col items-center">
               <div className="flex items-center space-x-3 p-1.5 rounded-full bg-slate-950/40 backdrop-blur-xl border border-white/10 shadow-2xl">
@@ -299,7 +364,7 @@ export default function App() {
                   {/* Restart Button */}
                   <ControlButton 
                       currentSpeed={gameSpeed}
-                      onClick={handleRestart}
+                      onClick={handleManualRestart}
                       icon={<svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>}
                   />
               </div>
