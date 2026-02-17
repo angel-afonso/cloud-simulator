@@ -16,7 +16,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({ onAddNode, canAfford, isOpen, 
     { title: "Network", items: [NodeType.CDN, NodeType.LOAD_BALANCER, NodeType.API_GATEWAY] },
     { title: "Compute", items: [
         NodeType.COMPUTE,
-        ...(unlockedTech.includes('autoscaling') ? [NodeType.AUTOSCALING_GROUP] : [])
+        ...((unlockedTech || []).includes('autoscaling') ? [NodeType.AUTOSCALING_GROUP] : [])
     ] },
     { title: "Data", items: [NodeType.CACHE, NodeType.DATABASE, NodeType.DATABASE_NOSQL, NodeType.STORAGE] },
   ];
