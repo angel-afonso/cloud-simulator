@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { ComputeTier, CdnTier, NodeData, NodeType, LoadBalancerAlgo, Connection, DbRole } from '../types';
-import { COMPUTE_TIERS, CDN_TIERS, NODE_COSTS, NODE_OPEX, NODE_COLORS } from '../constants';
+import { COMPUTE_TIERS, CDN_TIERS, NODE_COSTS, NODE_OPEX, NODE_COLORS, NODE_LABELS } from '../constants';
 
 interface PropertyPanelProps {
   selectedNode: NodeData | null;
