@@ -1,0 +1,5 @@
+{
+  "name": "CloudOps Simulator",
+  "description": "A business and operations simulator for designing cloud infrastructure. Manage traffic, mitigate DDoS attacks, and optimize compute tiers for profitability.",
+  "requestFramePermissions": []
+}
